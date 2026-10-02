@@ -1486,6 +1486,44 @@ function escapeHtmlForDoc(s){
   return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
 }
 
+// Giữ đường dẫn tải để Safari và các trình duyệt di động có thời gian xử lý.
+let grammarDownloadUrl = null;
+async function offerGrammarMobileDownload(blob, filename, msgEl, answered, total){
+  if(grammarDownloadUrl) URL.revokeObjectURL(grammarDownloadUrl);
+  grammarDownloadUrl = URL.createObjectURL(blob);
+  const previous = document.getElementById('gManualDownloadLink');
+  if(previous) previous.remove();
+  const link = document.createElement('a');
+  link.id = 'gManualDownloadLink';
+  link.href = grammarDownloadUrl;
+  link.download = filename;
+  link.textContent = '⬇ Tải file Word bài làm';
+  link.className = 'gsubmit-btn';
+  link.style.cssText = 'display:inline-block;text-decoration:none;margin-top:12px;max-width:100%;white-space:normal;';
+  const wrap = (msgEl && msgEl.parentElement) || document.body;
+  wrap.appendChild(link);
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const show = message => { if(msgEl){msgEl.textContent=message;msgEl.classList.add('show');} };
+  if(isMobile){
+    show(`✓ Đã tạo bài làm (${answered}/${total} câu). Hãy chọn Chia sẻ/Lưu vào Tệp hoặc bấm nút tải Word bên dưới. Nếu đang mở trong Zalo/Messenger, hãy mở trang bằng Safari hoặc Chrome.`);
+    if(navigator.share && navigator.canShare && typeof File !== 'undefined'){
+      try{
+        const file = new File([blob],filename,{type:'application/msword'});
+        if(navigator.canShare({files:[file]})){
+          await navigator.share({files:[file],title:'Bài làm tiếng Trung HSK2'});
+          show('✓ Đã mở chức năng chia sẻ. Bạn có thể lưu file vào Tệp/Drive hoặc gửi cho giáo viên. Nếu chưa lưu, bấm nút tải Word bên dưới.');
+        }
+      }catch(err){
+        if(err && err.name !== 'AbortError') show('Không thể mở chia sẻ tự động. Hãy bấm nút tải Word bên dưới hoặc mở bằng Safari/Chrome.');
+      }
+    }
+  }else{
+    link.click();
+    show(`✓ Đã tạo file bài làm (${answered}/${total} câu). Nếu file chưa tự tải, bấm nút tải Word bên dưới và gửi file cho giáo viên.`);
+  }
+}
+
 function exportLessonAnswers(){
   const nameInput = document.getElementById('gStudentName');
   const studentName = nameInput.value.trim();
@@ -1543,7 +1581,7 @@ function exportLessonAnswers(){
     <head><meta charset="utf-8"><title>Bài làm</title></head>
     <body style="font-family:Calibri, Arial, sans-serif; font-size:13px;">
       <h2 style="color:#AF3029;margin-bottom:2px;">Trung tâm Tiếng Trung Hà Lê</h2>
-      <p style="margin:0 0 14px;color:#555;">Bài làm Ngữ pháp &amp; Bài tập — HSK1</p>
+      <p style="margin:0 0 14px;color:#555;">Bài làm Ngữ pháp &amp; Bài tập — HSK2</p>
       <table style="border-collapse:collapse;width:100%;margin-bottom:16px;">
         <tr><td style="padding:4px 8px;"><b>Học sinh:</b></td><td style="padding:4px 8px;">${escapeHtmlForDoc(studentName)}</td></tr>
         <tr><td style="padding:4px 8px;"><b>Bài học:</b></td><td style="padding:4px 8px;">${escapeHtmlForDoc(lesson.title)}</td></tr>
@@ -1563,22 +1601,12 @@ function exportLessonAnswers(){
     </html>`;
 
   const blob = new Blob(['\ufeff', htmlDoc], {type:'application/msword'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
   const safeLesson = String(lesson.id).replace(/[^a-zA-Z0-9]/g,'') || 'OnTap';
   const safeName = studentName.replace(/[^\p{L}\p{N}]+/gu,'_');
-  a.href = url;
-  a.download = `BaiTap_HSK1_Bai${safeLesson}_${safeName}.doc`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-
+  const filename = `BaiTap_HSK2_Bai${safeLesson}_${safeName}.doc`;
   const msgEl = document.getElementById('gSubmitMsg');
-  if(msgEl){
-    msgEl.textContent = `✓ Đã tải file bài làm (${answeredCount}/${grammarAnswerRegistry.length} câu đã làm). Hãy gửi file này cho giáo viên qua Zalo/Messenger nhé!`;
-    msgEl.classList.add('show');
-  }
+  offerGrammarMobileDownload(blob, filename, msgEl, answeredCount, grammarAnswerRegistry.length);
+
 }
 
 
